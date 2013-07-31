@@ -32,8 +32,8 @@
 // Forwards calls to a delegate. Uses modern message forwarding with almost no runtime overhead.
 @interface PSTDelegateProxy : NSProxy
 
-// Designated initializer. `delegate` can be nil.
-- (id)initWithDelegate:(id)delegate;
+// Designated initializer. `delegate` can be nil, but `protocol` can’t.
+- (id)initWithDelegate:(id)delegate forProtocol:(Protocol *)protocol;
 
 // Returns an object that will return YES for messages that return a BOOL if they are not implemented.
 - (instancetype)YESDefault;
