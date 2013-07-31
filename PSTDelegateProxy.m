@@ -61,7 +61,8 @@ static CFDictionaryRef CopySignatureCacheForProtocol(Protocol *proto);
 
 - (void)dealloc
 {
-    CFRelease(_cache);
+    if (_cache)
+        CFRelease(_cache);
 }
 
 - (NSString *)description {
@@ -117,8 +118,9 @@ static CFDictionaryRef CopySignatureCacheForProtocol(Protocol *proto);
 
 static const size_t s_methodSize = sizeof(struct objc_method_description);
 
-static inline void AppendMethodsFromDescriptionsToList(struct objc_method_description *methods, size_t methodCount, method_description_list list, BOOL freeWhenDone)
+static inline void AppendMethodsFromDescriptionsToList(struct objc_method_description *methods, size_t methodCount, method_description_list *list, BOOL freeWhenDone)
 {
+    NSCParameterAssert(list);
     if (!methods)
         return;
 
@@ -129,11 +131,13 @@ static inline void AppendMethodsFromDescriptionsToList(struct objc_method_descri
         return;
     }
 
-    NSCAssert(list.firstDescription, @"list must have contain an allocated buffer that can be resized using realloc() as firstDescription!");
-    const size_t offset = list.length;
-    list.length += methodCount;
-    list.firstDescription = realloc(list.firstDescription, list.length * s_methodSize);
-    memcpy(list.firstDescription + offset, methods, methodCount * s_methodSize);
+    NSCAssert(list->firstDescription, @"list must have contain an allocated buffer that can be resized using realloc() as firstDescription!");
+    const size_t offset = list->length;
+    list->length += methodCount;
+    list->firstDescription = realloc(list->firstDescription, list->length * s_methodSize);
+
+    struct objc_method_description *destinationAddress = list->firstDescription + offset;
+    memcpy(destinationAddress, methods, methodCount * s_methodSize);
 
     if (freeWhenDone)
         free(methods);
@@ -149,7 +153,7 @@ static inline method_description_list CopyAllMethodDescriptionsForProtocol(Proto
         Protocol *parent, *__unsafe_unretained*pointer = inheritedProtocols;
         while ((parent = *(pointer++))) {
             method_description_list methods = CopyAllMethodDescriptionsForProtocol(parent);
-            AppendMethodsFromDescriptionsToList(methods.firstDescription, methods.length, list, YES);
+            AppendMethodsFromDescriptionsToList(methods.firstDescription, methods.length, &list, YES);
         }
 
         free(inheritedProtocols);
@@ -157,7 +161,7 @@ static inline method_description_list CopyAllMethodDescriptionsForProtocol(Proto
 
     size_t methodCount = 0;
     struct objc_method_description *firstDescription = protocol_copyMethodDescriptionList(proto, NO, YES, (unsigned int *)&methodCount);
-    AppendMethodsFromDescriptionsToList(firstDescription, methodCount, list, YES);
+    AppendMethodsFromDescriptionsToList(firstDescription, methodCount, &list, YES);
 
     return list;
 }
@@ -166,7 +170,9 @@ static CFDictionaryRef CopySignatureCacheForProtocol(Protocol *proto)
 {
     method_description_list methods = CopyAllMethodDescriptionsForProtocol(proto);
     CFMutableDictionaryRef mutableSignatureCache = CFDictionaryCreateMutable(kCFAllocatorDefault, methods.length, NULL, &kCFTypeDictionaryValueCallBacks);
-    for (struct objc_method_description *description = methods.firstDescription; description != NULL; description++) {
+    struct objc_method_description *description;
+    for (size_t methodIndex = 0; methodIndex < methods.length; methodIndex++) {
+        description = methods.firstDescription + methodIndex;
         NSMethodSignature *signature = [NSMethodSignature signatureWithObjCTypes:description->types];
         CFDictionarySetValue(mutableSignatureCache, description->name, (__bridge void *)signature);
     }
