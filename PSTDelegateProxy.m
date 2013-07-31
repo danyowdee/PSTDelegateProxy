@@ -65,6 +65,14 @@ static CFDictionaryRef CopySignatureCacheForProtocol(Protocol *proto);
         CFRelease(_cache);
 }
 
+- (BOOL)conformsToProtocol:(Protocol *)aProtocol
+{
+    if (protocol_conformsToProtocol(_protocol, aProtocol))
+        return YES;
+
+    return [super conformsToProtocol:aProtocol];
+}
+
 - (NSString *)description {
     return [NSString stringWithFormat:@"<%@ (Proxy for protocol %s): %p delegate:%@>", self.class, protocol_getName(_protocol), self, self.delegate];
 }
